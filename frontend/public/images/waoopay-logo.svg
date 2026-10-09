@@ -1,0 +1,12 @@
+<svg width="420" height="120" viewBox="0 0 420 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="waooGrad" x1="20" y1="12" x2="104" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="100" height="100" rx="26" fill="url(#waooGrad)"/>
+  <path d="M30 80L42 36L55 67L68 36L80 80H72L65 53L56 80H49L40 53L33 80H30Z" fill="white"/>
+  <text x="130" y="72" fill="#111827" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="40" letter-spacing="1.2">WAOO</text>
+  <text x="131" y="95" fill="#4F46E5" font-family="Inter, Arial, sans-serif" font-weight="600" font-size="18" letter-spacing="4">PAY</text>
+</svg>

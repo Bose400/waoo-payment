@@ -668,4 +668,7 @@ if (isDirectRun) {
   });
 }
 
+
 export { app, startServer, initializeDatabase, closeDatabase };
+
+export default app;

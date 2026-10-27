@@ -3,52 +3,37 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import sqlite3 from 'sqlite3';
-import path from 'node:path';
+import pg from 'pg';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dataDirectory = path.join(__dirname, '..', 'data');
-const dbPath = path.join(dataDirectory, 'paymeny.db');
+const { Pool } = pg;
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'paymeny-demo-secret';
-const db = new sqlite3.Database(dbPath);
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is missing. Add it to your environment variables.');
+}
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is missing. Add it to your environment variables.');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 5,
+  idleTimeoutMillis: 10000,
+});
+
 let initializationPromise = null;
 
-const closeDatabase = () =>
-  new Promise((resolve, reject) => {
-    db.close((error) => (error ? reject(error) : resolve()));
-  });
-
-const run = (sql, params = []) =>
-  new Promise((resolve, reject) => {
-    db.run(sql, params, function onRun(err) {
-      if (err) return reject(err);
-      resolve({ id: this.lastID, changes: this.changes });
-    });
-  });
-
-const get = (sql, params = []) =>
-  new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) return reject(err);
-      resolve(row);
-    });
-  });
-
-const all = (sql, params = []) =>
-  new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) return reject(err);
-      resolve(rows || []);
-    });
-  });
 
 const createToken = (user) =>
   jwt.sign({ userId: user.id, email: user.email, role: user.role || 'customer' }, JWT_SECRET, { expiresIn: '7d' });
@@ -148,8 +133,7 @@ const initializeDatabase = async () => {
   }
 
   initializationPromise = (async () => {
-    await import('node:fs/promises').then(({ mkdir }) => mkdir(dataDirectory, { recursive: true }));
-
+   
     await run(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -211,11 +195,9 @@ const initializeDatabase = async () => {
       )
     `);
 
-    await run('ALTER TABLE kyc_records ADD COLUMN review_notes TEXT').catch((error) => {
-      if (!/duplicate column/i.test(error.message)) {
-        throw error;
-      }
-    });
+    
+
+    await run('ALTER TABLE kyc_records ADD COLUMN IF NOT EXISTS review_notes TEXT');
 
     const jane = await get('SELECT * FROM users WHERE email = ?', ['jane@paymeny.com']);
     if (!jane) {
@@ -284,8 +266,20 @@ const initializeDatabase = async () => {
   return initializationPromise;
 };
 
+
 app.use(cors());
 app.use(express.json());
+
+app.use(async (_req, res, next) => {
+  try {
+    await initializeDatabase();
+    next();
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    res.status(500).json({ message: 'Database initialization failed.' });
+  }
+});
+
 
 app.get('/', (_req, res) => {
   res.json({
@@ -667,6 +661,10 @@ if (isDirectRun) {
     console.error('Failed to initialize database:', error);
   });
 }
+
+const closeDatabase = async () => {
+  await db.end();
+};
 
 
 export { app, startServer, initializeDatabase, closeDatabase };

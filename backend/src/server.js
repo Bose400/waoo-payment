@@ -32,6 +32,51 @@ const db = new Pool({
   idleTimeoutMillis: 10000,
 });
 
+const run = async (sql, params = []) => {
+  const ignoreConflict = /^\s*INSERT\s+OR\s+IGNORE\s+INTO/i.test(sql);
+
+  let query = sql.replace(
+    /^\s*INSERT\s+OR\s+IGNORE\s+INTO/i,
+    'INSERT INTO'
+  );
+
+  query = query.replace(
+    /\bADD\s+COLUMN\s+(?!IF\s+NOT\s+EXISTS)/i,
+    'ADD COLUMN IF NOT EXISTS '
+  );
+
+  let index = 0;
+  query = query.replace(/\?/g, () => `$${++index}`);
+
+  if (ignoreConflict) {
+    query = `${query.trim().replace(/;$/, '')} ON CONFLICT DO NOTHING`;
+  }
+
+  const result = await db.query(query, params);
+
+  return {
+    id: null,
+    changes: result.rowCount,
+  };
+};
+
+const get = async (sql, params = []) => {
+  let index = 0;
+  const query = sql.replace(/\?/g, () => `$${++index}`);
+  const result = await db.query(query, params);
+  return result.rows[0];
+};
+
+const all = async (sql, params = []) => {
+  let index = 0;
+  const query = sql.replace(/\?/g, () => `$${++index}`);
+  const result = await db.query(query, params);
+  return result.rows;
+};
+const closeDatabase = async () => {
+  await db.end();
+};
+
 let initializationPromise = null;
 
 
@@ -662,9 +707,7 @@ if (isDirectRun) {
   });
 }
 
-const closeDatabase = async () => {
-  await db.end();
-};
+
 
 
 export { app, startServer, initializeDatabase, closeDatabase };
